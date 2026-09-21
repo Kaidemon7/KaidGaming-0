@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Game Launcher - 1490 Games</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0a0a0f; --fg: #e8e8e8; --muted: #6b6b7b;
+  --accent: #00d4aa; --accent-dim: #00d4aa33;
+  --card: #14141f; --border: #2a2a3a; --danger: #ff4757;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg: #f5f5f7; --fg: #1d1d1f; --muted: #86868b; --card: #fff; --border: #d2d2d7; }
+}
+html,body { height: 100%; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); }
+#app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+header { padding: 16px 20px; background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+.search-row { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+#search { flex: 1; min-width: 200px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--fg); font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+#search:focus { border-color: var(--accent); }
+select { padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--fg); font-size: 0.9rem; cursor: pointer; min-width: 140px; }
+main { overflow-y: auto; padding: 20px; }
+.stats { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); }
+.stats span { background: var(--card); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s; }
+.card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 8px 24px var(--accent-dim); }
+.card.broken { opacity: 0.5; border-color: var(--danger); }
+.card.broken:hover { transform: none; box-shadow: none; border-color: var(--danger); }
+.card-img { aspect-ratio: 16/9; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); position: relative; overflow: hidden; }
+.card-img::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 30% 30%, var(--accent-dim) 0%, transparent 70%); opacity: 0; transition: opacity 0.3s; }
+.card:hover .card-img::before { opacity: 1; }
+.card-badge { position: absolute; top: 8px; left: 8px; font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.card-badge.azgames { background: #ff6b35; color: #fff; }
+.card-badge.crazygames { background: #00d4aa; color: #000; }
+.card-badge.cloudfront { background: var(--danger); color: #fff; }
+.card-info { padding: 10px 12px; }
+.card-title { font-size: 0.85rem; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-source { font-size: 0.7rem; color: var(--muted); margin-top: 4px; display: flex; gap: 6px; align-items: center; }
+.card-source .dot { width: 6px; height: 6px; border-radius: 50%; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: none; flex-direction: column; }
+.modal.open { display: flex; }
+.modal-header { padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-title { font-weight: 600; font-size: 1rem; }
+.modal-close { background: none; border: none; color: var(--fg); font-size: 1.5rem; cursor: pointer; padding: 4px; line-height: 1; opacity: 0.6; transition: opacity 0.2s; }
+.modal-close:hover { opacity: 1; }
+.modal-body { flex: 1; position: relative; overflow: hidden; }
+.modal-body iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+.modal-error { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; color: var(--muted); }
+.modal-error.visible { display: flex; }
+.modal-error svg { width: 64px; height: 64px; stroke: var(--danger); opacity: 0.7; }
+.modal-error h3 { font-size: 1.1rem; color: var(--fg); }
+.modal-error p { font-size: 0.9rem; max-width: 400px; }
+.modal-error .btn { padding: 10px 24px; background: var(--accent); color: #000; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 0.9rem; }
+.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-state { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5; }
+@media (max-width: 480px) {
+  .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  header { padding: 12px 16px; }
+  main { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Game Launcher</h1>
+    <div class="search-row">
+      <input type="search" id="search" placeholder="Search games..." aria-label="Search games">
+      <select id="sourceFilter"><option value="">All Sources</option></select>
+      <select id="statusFilter"><option value="">All Status</option><option value="working">Working</option><option value="broken">Unavailable</option></select>
+    </div>
+    <div class="stats">
+      <span id="statTotal">Total: 0</span>
+      <span id="statWorking">Working: 0</span>
+      <span id="statBroken">Unavailable: 0</span>
+      <span id="statFiltered">Showing: 0</span>
+    </div>
+  </header>
+  <main>
+    <div class="grid" id="grid" role="list"></div>
+    <div class="empty-state" id="emptyState" style="display:none" aria-live="polite">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <p>No games found matching your filters</p>
+    </div>
+  </main>
+</div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-header">
+    <h2 class="modal-title" id="modalTitle"></h2>
+    <button class="modal-close" id="modalClose" aria-label="Close game">&times;</button>
+  </div>
+  <div class="modal-body" id="modalBody">
+    <div class="loading" id="modalLoading"><div class="spinner"></div>Loading game...</div>
+    <iframe id="gameFrame" allow="autoplay; fullscreen; gamepad; pointer-lock; accelerometer; gyroscope; microphone; camera" allowfullscreen style="display:none"></iframe>
+    <div class="modal-error" id="modalError" role="alert">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      <h3>Unable to Load Game</h3>
+      <p id="errorMsg">This game could not be loaded. The source may be blocked or unavailable.</p>
+      <button class="btn" id="openExternal">Open in New Tab</button>
+    </div>
+  </div>
+</div>
+<script>
+const GAMES_DATA = [];
+</script>
+<script src="games.json"></script>
+<script>
+(() => {
+  const grid = document.getElementById('grid');
+  const search = document.getElementById('search');
+  const sourceFilter = document.getElementById('sourceFilter');
+  const statusFilter = document.getElementById('statusFilter');
+  const emptyState = document.getElementById('emptyState');
+  const statTotal = document.getElementById('statTotal');
+  const statWorking = document.getElementById('statWorking');
+  const statBroken = document.getElementById('statBroken');
+  const statFiltered = document.getElementById('statFiltered');
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalClose = document.getElementById('modalClose');
+  const modalBody = document.getElementById('modalBody');
+  const modalLoading = document.getElementById('modalLoading');
+  const gameFrame = document.getElementById('gameFrame');
+  const modalError = document.getElementById('modalError');
+  const errorMsg = document.getElementById('errorMsg');
+  const openExternal = document.getElementById('openExternal');
+
+  let games = [];
+  let currentGame = null;
+  let loadTimeout = null;
+
+  const SOURCE_LABELS = {
+    azgames: 'AZGames',
+    crazygames: 'CrazyGames',
+    cloudfront: 'CloudFront'
+  };
+  const SOURCE_COLORS = {
+    azgames: '#ff6b35',
+    crazygames: '#00d4aa',
+    cloudfront: '#ff4757'
+  };
+
+  function init() {
+    games = GAMES_DATA.map(g => ({
+      ...g,
+      working: g.source !== 'cloudfront',
+      id: g.name
+    }));
+    populateSourceFilter();
+    updateStats();
+    render();
+    bindEvents();
+  }
+
+  function populateSourceFilter() {
+    const sources = [...new Set(games.map(g => g.source))].sort();
+    sources.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = SOURCE_LABELS[s] || s;
+      sourceFilter.appendChild(opt);
+    });
+    statusFilter.innerHTML = '<option value="">All Status</option><option value="working">Working</option><option value="broken">Unavailable</option>';
+  }
+
+  function updateStats() {
+    const total = games.length;
+    const working = games.filter(g => g.working).length;
+    const broken = games.filter(g => !g.working).length;
+    statTotal.textContent = `Total: ${total}`;
+    statWorking.textContent = `Working: ${working}`;
+    statBroken.textContent = `Unavailable: ${broken}`;
+  }
+
+  function getFilteredGames() {
+    const q = search.value.toLowerCase().trim();
+    const src = sourceFilter.value;
+    const status = statusFilter.value;
+    return games.filter(g => {
+      const matchSearch = !q || g.title.toLowerCase().includes(q) || g.name.includes(q);
+      const matchSource = !src || g.source === src;
+      const matchStatus = !status || (status === 'working' ? g.working : !g.working);
+      return matchSearch && matchSource && matchStatus;
+    });
+  }
+
+  function render() {
+    const filtered = getFilteredGames();
+    statFiltered.textContent = `Showing: ${filtered.length}`;
+    grid.innerHTML = '';
+    if (filtered.length === 0) {
+      emptyState.style.display = 'block';
+      return;
+    }
+    emptyState.style.display = 'none';
+    filtered.forEach(g => {
+      const card = document.createElement('article');
+      card.className = `card${!g.working ? ' broken' : ''}`;
+      card.setAttribute('role', 'listitem');
+      card.setAttribute('tabindex', '0');
+      card.dataset.id = g.id;
+      card.innerHTML = `
+        <div class="card-img">
+          <span class="card-badge ${g.source}">${SOURCE_LABELS[g.source] || g.source}</span>
+          ${!g.working ? '<span class="card-badge" style="top:auto;bottom:8px;right:8px;background:#ff4757">UNAVAILABLE</span>' : ''}
+        </div>
+        <div class="card-info">
+          <div class="card-title">${escapeHtml(g.title)}</div>
+          <div class="card-source">
+            <span class="dot" style="background:${SOURCE_COLORS[g.source] || '#666'}"></span>
+            ${SOURCE_LABELS[g.source] || g.source}
+            ${!g.working ? ' • Unavailable (403 Forbidden)' : ''}
+          </div>
+        </div>
+      `;
+      card.addEventListener('click', () => openGame(g));
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGame(g); } });
+      grid.appendChild(card);
+    });
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[c]));
+  }
+
+  function openGame(game) {
+    currentGame = game;
+    modalTitle.textContent = game.title;
+    modalLoading.style.display = 'flex';
+    gameFrame.style.display = 'none';
+    modalError.classList.remove('visible');
+    gameFrame.src = 'about:blank';
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    if (!game.working) {
+      setTimeout(() => showError(`This game is hosted on CloudFront (d3tecwpbnz01jy.cloudfront.net) which returns 403 Forbidden. The game files are not accessible.`), 300);
+      return;
+    }
+
+    gameFrame.src = game.url;
+    gameFrame.style.display = 'block';
+
+    loadTimeout = setTimeout(() => {
+      if (modal.classList.contains('open') && gameFrame.style.display !== 'none') {
+        showError('The game is taking too long to load. It may be blocked from embedding.');
+      }
+    }, 15000);
+
+    gameFrame.onload = () => {
+      clearTimeout(loadTimeout);
+      modalLoading.style.display = 'none';
+    };
+    gameFrame.onerror = () => {
+      clearTimeout(loadTimeout);
+      showError('Failed to load the game. The source may block embedding.');
+    };
+  }
+
+  function showError(message) {
+    modalLoading.style.display = 'none';
+    gameFrame.style.display = 'none';
+    errorMsg.textContent = message;
+    openExternal.onclick = () => window.open(currentGame.url, '_blank', 'noopener,noreferrer');
+    modalError.classList.add('visible');
+  }
+
+  function closeModal() {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+    clearTimeout(loadTimeout);
+    gameFrame.src = 'about:blank';
+    modalError.classList.remove('visible');
+    currentGame = null;
+  }
+
+  function bindEvents() {
+    search.addEventListener('input', debounce(render, 150));
+    sourceFilter.addEventListener('change', render);
+    statusFilter.addEventListener('change', render);
+    modalClose.addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.classList.contains('open')) closeModal(); });
+  }
+
+  function debounce(fn, ms) {
+    let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  }
+
+  if (typeof GAMES_DATA !== 'undefined' && GAMES_DATA.length) {
+    init();
+  } else {
+    fetch('games.json').then(r => r.json()).then(data => {
+      window.GAMES_DATA = data;
+      init();
+    }).catch(err => {
+      console.error('Failed to load games.json', err);
+      grid.innerHTML = '<div class="empty-state"><p>Failed to load game data</p></div>';
+    });
+  }
+})();
+</script>
+</body>
+</html>
